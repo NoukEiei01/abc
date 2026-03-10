@@ -17,45 +17,41 @@ rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
 mkdir -p /tmp/.X11-unix
 chmod 1777 /tmp/.X11-unix
 
-# Install pyDes แล้วสร้าง VNC passwd
-pip3 install pyDes -q 2>/dev/null || true
+# รับ password จาก env var
+VNC_PASS="${VNC_PASSWORD:-nouk1234}"
+echo "[*] Using VNC password from: ${VNC_PASSWORD:+VNC_PASSWORD env var}"
 
+# สร้าง VNC passwd จาก env var
 mkdir -p /home/Nouk/.vnc
-python3 << 'PYEOF'
+python3 << PYEOF
 import os
 
 def vncEncryptPasswd(password):
-    # VNC flips bits in each byte of the key
     flipped = []
     for c in password[:8].ljust(8):
         b = ord(c) if isinstance(c, str) else c
         flipped.append(int('{:08b}'.format(b)[::-1], 2))
     key = bytes(flipped)
-
     try:
         import pyDes
         d = pyDes.des(key, pyDes.ECB)
-        encrypted = d.encrypt(b'\x00' * 8)
-        return encrypted[:8]
+        return d.encrypt(b'\x00' * 8)[:8]
     except ImportError:
-        pass
-
-    # fallback: openssl
-    import subprocess
-    r = subprocess.run(
-        ['openssl', 'enc', '-des-ecb', '-nosalt', '-nopad', '-K', key.hex()],
-        input=b'\x00' * 8, capture_output=True
-    )
-    if len(r.stdout) >= 8:
-        return r.stdout[:8]
-
+        import subprocess
+        r = subprocess.run(
+            ['openssl', 'enc', '-des-ecb', '-nosalt', '-nopad', '-K', key.hex()],
+            input=b'\x00' * 8, capture_output=True
+        )
+        if len(r.stdout) >= 8:
+            return r.stdout[:8]
     return None
 
-passwd = vncEncryptPasswd('nouk1234')
+password = os.environ.get('VNC_PASSWORD', 'nouk1234')
+passwd = vncEncryptPasswd(password)
 if passwd and len(passwd) == 8:
     with open('/home/Nouk/.vnc/passwd', 'wb') as f:
         f.write(passwd)
-    print(f'VNC passwd OK: {passwd.hex()}')
+    print(f'VNC passwd OK: {passwd.hex()} (from password: {password})')
 else:
     print('ERROR: failed to generate passwd')
     exit(1)
@@ -65,7 +61,7 @@ chmod 600 /home/Nouk/.vnc/passwd
 chown -R Nouk:Nouk /home/Nouk/.vnc
 touch /home/Nouk/.Xauthority
 chown Nouk:Nouk /home/Nouk/.Xauthority
-echo "[*] VNC passwd: $(stat -c%s /home/Nouk/.vnc/passwd) bytes → $(xxd -p /home/Nouk/.vnc/passwd)"
+echo "[*] VNC passwd ready"
 
 # Configure xrdp
 cat > /etc/xrdp/xrdp.ini << 'EOF'
