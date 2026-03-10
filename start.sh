@@ -18,7 +18,7 @@ rm -f /tmp/.X1-lock
 rm -f /tmp/.X11-unix/X1
 su - Nouk -c "rm -f ~/.vnc/*.pid ~/.vnc/*:1* 2>/dev/null || true"
 
-# Reset VNC password
+# Set VNC password ตรงนี้แทน (vncpasswd พร้อมใช้แล้วตอน runtime)
 su - Nouk -c "
     mkdir -p ~/.vnc
     rm -f ~/.vnc/passwd
@@ -26,6 +26,7 @@ su - Nouk -c "
     chmod 600 ~/.vnc/passwd
 "
 chown -R Nouk:Nouk /home/Nouk/.vnc
+echo "[*] VNC password set"
 
 # Configure xrdp
 cat > /etc/xrdp/xrdp.ini << 'EOF'
