@@ -2,7 +2,6 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV USER=Nouk
-ENV PASSWORD=nouk1234
 ENV HOME=/home/Nouk
 ENV DISPLAY=:1
 
@@ -28,21 +27,18 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     apt-transport-https \
     net-tools \
-    python3-pip \
-    xxd \
     procps \
     sudo \
     tzdata \
     locales \
+    expect \
+    python3 \
+    python3-pip \
+    xxd \
+    openssl \
     --no-install-recommends \
+    && pip3 install pyDes --break-system-packages -q 2>/dev/null || pip3 install pyDes -q \
     && rm -rf /var/lib/apt/lists/*
-
-# DEBUG: หา vnc binaries ทั้งหมด
-RUN echo "=== VNC binaries ===" \
-    && find /usr -name "*vnc*" 2>/dev/null \
-    && find /usr -name "*Xvnc*" 2>/dev/null \
-    && echo "=== dpkg tigervnc ===" \
-    && dpkg -L tigervnc-standalone-server 2>/dev/null || true
 
 # Install Tailscale
 RUN curl -fsSL https://tailscale.com/install.sh | sh
@@ -53,14 +49,17 @@ RUN useradd -m -s /bin/bash Nouk \
     && usermod -aG sudo Nouk \
     && echo "Nouk ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
+# Setup directories
 RUN mkdir -p /home/Nouk/.vnc \
     && mkdir -p /home/Nouk/.config \
     && chown -R Nouk:Nouk /home/Nouk
 
+# Copy xstartup
 COPY xstartup /home/Nouk/.vnc/xstartup
 RUN chmod +x /home/Nouk/.vnc/xstartup \
     && chown Nouk:Nouk /home/Nouk/.vnc/xstartup
 
+# Configure xrdp
 RUN sed -i 's/^crypt_level=high/crypt_level=low/' /etc/xrdp/xrdp.ini \
     && echo "exec startxfce4" > /home/Nouk/.xsession \
     && chown Nouk:Nouk /home/Nouk/.xsession
