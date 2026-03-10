@@ -49,20 +49,14 @@ RUN mkdir -p /home/Nouk/.vnc \
     && mkdir -p /home/Nouk/.config \
     && chown -R Nouk:Nouk /home/Nouk
 
-# Set VNC password (tigervnc ใช้วิธีนี้)
-RUN su - Nouk -c "\
-    mkdir -p ~/.vnc && \
-    printf 'nouk1234\nnouk1234\nn\n' | vncpasswd && \
-    chmod 600 ~/.vnc/passwd"
-
-# Copy xstartup
+# xstartup (VNC password จะ set ใน start.sh แทน)
 COPY xstartup /home/Nouk/.vnc/xstartup
 RUN chmod +x /home/Nouk/.vnc/xstartup \
     && chown Nouk:Nouk /home/Nouk/.vnc/xstartup
 
 # Configure xrdp
 RUN sed -i 's/^crypt_level=high/crypt_level=low/' /etc/xrdp/xrdp.ini \
-    && echo "exec /usr/bin/xfce4-session" > /home/Nouk/.xsession \
+    && echo "exec startxfce4" > /home/Nouk/.xsession \
     && chown Nouk:Nouk /home/Nouk/.xsession
 
 RUN adduser xrdp ssl-cert || true
