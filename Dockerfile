@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y \
     sudo \
     tzdata \
     locales \
+    expect \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
@@ -49,8 +50,11 @@ RUN mkdir -p ${HOME}/.vnc \
     && mkdir -p ${HOME}/.config \
     && chown -R ${USER}:${USER} ${HOME}
 
-# Set VNC password
-RUN su - ${USER} -c "mkdir -p ~/.vnc && echo '${PASSWORD}' | vncpasswd -f > ~/.vnc/passwd && chmod 600 ~/.vnc/passwd"
+# Set VNC password (แก้แล้ว)
+RUN su - Nouk -c "\
+    mkdir -p ~/.vnc && \
+    printf 'nouk1234\nnouk1234\nn\n' | vncpasswd && \
+    chmod 600 ~/.vnc/passwd"
 
 # Copy xstartup for VNC (XFCE4)
 COPY xstartup ${HOME}/.vnc/xstartup
