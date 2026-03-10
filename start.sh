@@ -18,53 +18,34 @@ rm -f /tmp/.X1-lock
 rm -f /tmp/.X11-unix/X1
 su - Nouk -c "rm -f ~/.vnc/*.pid ~/.vnc/*:1* 2>/dev/null || true"
 
-# Set VNC password ด้วย tigervncserver
-su - Nouk -c "
-    mkdir -p ~/.vnc
-    rm -f ~/.vnc/passwd
-    /usr/bin/tigervncserver -passwd ~/.vnc/passwd <<EOF
-nouk1234
-nouk1234
-EOF
-    chmod 600 ~/.vnc/passwd
-" 2>/dev/null || true
+# สร้าง VNC passwd ด้วย python (ก่อน supervisord start)
+mkdir -p /home/Nouk/.vnc
+python3 -c "
+import subprocess, os
 
-# ถ้ายังไม่มี passwd ใช้ python สร้างแทน
-if [ ! -f /home/Nouk/.vnc/passwd ]; then
-    echo "[!] Using python to generate VNC passwd"
-    python3 -c "
-import struct, os
+password = b'nouk1234'
+key = bytearray(8)
+for i in range(8):
+    b = password[i] if i < len(password) else 0
+    rb = 0
+    for j in range(8):
+        rb |= ((b >> j) & 1) << (7 - j)
+    key[i] = rb
 
-def gen_vnc_passwd(password):
-    # VNC uses DES with reversed bit order
-    key = bytearray(8)
-    pwd = password.encode('utf-8')[:8].ljust(8, b'\x00')
-    for i in range(8):
-        b = pwd[i] if i < len(pwd) else 0
-        rb = 0
-        for j in range(8):
-            rb |= ((b >> j) & 1) << (7 - j)
-        key[i] = rb
-    # encrypt 8 zero bytes with key
-    import subprocess
-    result = subprocess.run(
-        ['openssl', 'enc', '-des-ecb', '-nosalt', '-nopad',
-         '-K', key.hex(), '-in', '/dev/stdin'],
-        input=b'\x00' * 8, capture_output=True
-    )
-    return result.stdout[:8]
-
-passwd = gen_vnc_passwd('nouk1234')
-os.makedirs('/home/Nouk/.vnc', exist_ok=True)
+result = subprocess.run(
+    ['openssl', 'enc', '-des-ecb', '-nosalt', '-nopad',
+     '-K', key.hex()],
+    input=b'\x00' * 8,
+    capture_output=True
+)
 with open('/home/Nouk/.vnc/passwd', 'wb') as f:
-    f.write(passwd)
-print('VNC passwd generated')
+    f.write(result.stdout[:8])
+print('VNC passwd written to /home/Nouk/.vnc/passwd')
 "
-fi
 
+chmod 600 /home/Nouk/.vnc/passwd
 chown -R Nouk:Nouk /home/Nouk/.vnc
-chmod 600 /home/Nouk/.vnc/passwd 2>/dev/null || true
-echo "[*] VNC password ready"
+echo "[*] VNC password ready: $(ls -la /home/Nouk/.vnc/passwd)"
 
 # Configure xrdp
 cat > /etc/xrdp/xrdp.ini << 'EOF'
