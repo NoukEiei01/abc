@@ -34,6 +34,9 @@ RUN apt-get update && apt-get install -y \
     locales \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
+# Debug: หา vncpasswd binary
+RUN find / -name "vncpasswd" 2>/dev/null || echo "vncpasswd not found at build time"
+RUN find / -name "tigervncpasswd" 2>/dev/null || echo "tigervncpasswd not found"
 
 # Install Tailscale
 RUN curl -fsSL https://tailscale.com/install.sh | sh
