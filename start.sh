@@ -3,10 +3,9 @@ set -e
 
 echo "[*] Starting Remote Desktop System..."
 
-# Create log directory
 mkdir -p /var/log/supervisor
 
-# Fix dbus (รัน manual ไม่ผ่าน supervisor)
+# Fix dbus
 rm -f /run/dbus/pid
 mkdir -p /run/dbus
 chown messagebus:messagebus /run/dbus
@@ -14,10 +13,10 @@ chown messagebus:messagebus /run/dbus
 sleep 2
 echo "[*] dbus started"
 
-# Clean up stale VNC locks
+# Clean stale VNC locks
 rm -f /tmp/.X1-lock
 rm -f /tmp/.X11-unix/X1
-su - Nouk -c "rm -f ~/.vnc/*.pid 2>/dev/null || true"
+su - Nouk -c "rm -f ~/.vnc/*.pid ~/.vnc/*:1* 2>/dev/null || true"
 
 # Reset VNC password
 su - Nouk -c "
@@ -26,7 +25,6 @@ su - Nouk -c "
     printf 'nouk1234\nnouk1234\nn\n' | vncpasswd
     chmod 600 ~/.vnc/passwd
 "
-
 chown -R Nouk:Nouk /home/Nouk/.vnc
 
 # Configure xrdp
@@ -49,7 +47,6 @@ ip=127.0.0.1
 port=5901
 EOF
 
-# Configure sesman
 cat > /etc/xrdp/sesman.ini << 'EOF'
 [Globals]
 ListenAddress=127.0.0.1
@@ -85,14 +82,13 @@ param=-dpi
 param=96
 EOF
 
-# Set startwm.sh
 cat > /etc/xrdp/startwm.sh << 'EOF'
 #!/bin/sh
 if [ -r /etc/default/locale ]; then
     . /etc/default/locale
     export LANG LANGUAGE
 fi
-exec /usr/bin/xfce4-session
+exec startxfce4
 EOF
 chmod +x /etc/xrdp/startwm.sh
 
