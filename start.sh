@@ -33,26 +33,18 @@ send "n\r"
 expect eof
 EXPECTEOF
 
-# ถ้า expect ไม่ได้ผล fallback ใช้ python pyDes
-if [ ! -s /home/Nouk/.vnc/passwd ]; then
-    echo "[*] expect fallback to python..."
-    python3 -c "
-import pyDes, os
-pwd = os.environ.get('VNC_PASSWORD', 'nouk1234')
-def rbits(b): return int('{:08b}'.format(b)[::-1], 2)
-key = bytes([rbits(ord(c)) for c in pwd[:8].ljust(8)])
-d = pyDes.des(key, pyDes.ECB)
-data = d.encrypt(b'\x00'*8)[:8]
-open('/home/Nouk/.vnc/passwd','wb').write(data)
-print('passwd:', data.hex())
-"
-fi
+# ** kill tigervncserver ที่เปิดไว้ตอน set password **
+echo "[*] Killing temp VNC server..."
+su - Nouk -c "/usr/bin/tigervncserver -kill :1 2>/dev/null || true"
+sleep 1
+rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
+su - Nouk -c "rm -f ~/.vnc/*.pid 2>/dev/null || true"
 
 chmod 600 /home/Nouk/.vnc/passwd
 chown -R Nouk:Nouk /home/Nouk/.vnc
 touch /home/Nouk/.Xauthority
 chown Nouk:Nouk /home/Nouk/.Xauthority
-echo "[*] VNC passwd: $(stat -c%s /home/Nouk/.vnc/passwd) bytes"
+echo "[*] VNC passwd ready: $(stat -c%s /home/Nouk/.vnc/passwd) bytes"
 
 # Configure xrdp
 cat > /etc/xrdp/xrdp.ini << 'EOF'
