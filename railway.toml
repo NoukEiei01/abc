@@ -1,0 +1,56 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "/start.sh"
+healthcheckPath = "/"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "remote-desktop"
+
+[services.ports]
+vnc = 5901
+xrdp = 3389
+novnc = 6080
+```
+
+---
+
+## 6. .railwayignore (optional)
+```
+.git
+.gitignore
+README.md
+*.md
+```
+
+---
+
+## วิธี Deploy บน Railway.app
+
+### ขั้นตอน:
+```
+1. สร้าง repo บน GitHub แล้ว push ไฟล์ทั้งหมดขึ้นไป
+
+2. ไปที่ railway.app → New Project → Deploy from GitHub repo
+
+3. ตั้งค่า Environment Variables บน Railway:
+   TAILSCALE_AUTHKEY = tskey-auth-xxxxxxxx   ← จาก tailscale.com/settings/keys
+   PASSWORD          = your_password_here
+
+4. Railway จะ build Dockerfile อัตโนมัติ
+
+5. เปิด Port ใน Railway:
+   Settings → Networking → Add Port
+   เพิ่ม: 6080 (noVNC), 3389 (xRDP), 5901 (VNC)
+```
+
+### วิธีเข้าใช้งาน:
+```
+noVNC  (Browser) : http://<railway-domain>:6080
+xRDP   (Windows) : mstsc → <railway-domain>:3389  user: Nouk  pass: nouk1234
+VNC    (Client)  : <railway-domain>:5901           pass: nouk1234
