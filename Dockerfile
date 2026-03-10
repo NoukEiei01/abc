@@ -28,6 +28,8 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     apt-transport-https \
     net-tools \
+    python3-pip \
+    xxd \
     procps \
     sudo \
     tzdata \
