@@ -1,14 +1,17 @@
 #!/bin/bash
 unset SESSION_MANAGER
 unset DBUS_SESSION_BUS_ADDRESS
-
 export XKL_XMODMAP_DISABLE=1
 export DISPLAY=:1
+export HOME=/home/Nouk
+export USER=Nouk
 
 # Start dbus session
-eval $(dbus-launch --sh-syntax --exit-with-session) 2>/dev/null || true
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+    eval $(dbus-launch --sh-syntax --exit-with-session 2>/dev/null) || true
+fi
 
-xsetroot -solid "#2d2d2d" &
+xsetroot -solid "#2d2d2d" 2>/dev/null || true
 
 # Start XFCE4
 exec startxfce4
