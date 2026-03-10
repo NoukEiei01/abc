@@ -34,9 +34,13 @@ RUN apt-get update && apt-get install -y \
     locales \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
-# Debug: หา vncpasswd binary
-RUN find / -name "vncpasswd" 2>/dev/null || echo "vncpasswd not found at build time"
-RUN find / -name "tigervncpasswd" 2>/dev/null || echo "tigervncpasswd not found"
+
+# DEBUG: หา vnc binaries ทั้งหมด
+RUN echo "=== VNC binaries ===" \
+    && find /usr -name "*vnc*" 2>/dev/null \
+    && find /usr -name "*Xvnc*" 2>/dev/null \
+    && echo "=== dpkg tigervnc ===" \
+    && dpkg -L tigervnc-standalone-server 2>/dev/null || true
 
 # Install Tailscale
 RUN curl -fsSL https://tailscale.com/install.sh | sh
@@ -47,17 +51,14 @@ RUN useradd -m -s /bin/bash Nouk \
     && usermod -aG sudo Nouk \
     && echo "Nouk ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Setup directories
 RUN mkdir -p /home/Nouk/.vnc \
     && mkdir -p /home/Nouk/.config \
     && chown -R Nouk:Nouk /home/Nouk
 
-# xstartup (VNC password จะ set ใน start.sh แทน)
 COPY xstartup /home/Nouk/.vnc/xstartup
 RUN chmod +x /home/Nouk/.vnc/xstartup \
     && chown Nouk:Nouk /home/Nouk/.vnc/xstartup
 
-# Configure xrdp
 RUN sed -i 's/^crypt_level=high/crypt_level=low/' /etc/xrdp/xrdp.ini \
     && echo "exec startxfce4" > /home/Nouk/.xsession \
     && chown Nouk:Nouk /home/Nouk/.xsession
