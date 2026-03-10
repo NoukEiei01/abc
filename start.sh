@@ -2,7 +2,6 @@
 set -e
 
 echo "[*] Starting Remote Desktop System..."
-
 mkdir -p /var/log/supervisor
 
 # Fix dbus
@@ -10,54 +9,63 @@ rm -f /run/dbus/pid
 mkdir -p /run/dbus
 chown messagebus:messagebus /run/dbus
 /usr/bin/dbus-daemon --system --fork --nopidfile 2>/dev/null || true
-sleep 2
+sleep 1
 echo "[*] dbus started"
 
-# Clean stale VNC locks
-rm -f /tmp/.X1-lock
-rm -f /tmp/.X11-unix/X1
+# Clean stale X locks
+rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
 mkdir -p /tmp/.X11-unix
 chmod 1777 /tmp/.X11-unix
-su - Nouk -c "rm -f ~/.vnc/*.pid ~/.vnc/*:1* 2>/dev/null || true"
 
-# สร้าง VNC passwd (8 bytes DES encrypted)
+# Install pyDes แล้วสร้าง VNC passwd
+pip3 install pyDes -q 2>/dev/null || true
+
 mkdir -p /home/Nouk/.vnc
 python3 << 'PYEOF'
-import struct, os, subprocess
+import os
 
-def reverse_bits(b):
-    result = 0
-    for i in range(8):
-        result |= ((b >> i) & 1) << (7 - i)
-    return result
+def vncEncryptPasswd(password):
+    # VNC flips bits in each byte of the key
+    flipped = []
+    for c in password[:8].ljust(8):
+        b = ord(c) if isinstance(c, str) else c
+        flipped.append(int('{:08b}'.format(b)[::-1], 2))
+    key = bytes(flipped)
 
-password = "nouk1234"
-key = bytes([reverse_bits(ord(c)) for c in password[:8].ljust(8)])
+    try:
+        import pyDes
+        d = pyDes.des(key, pyDes.ECB)
+        encrypted = d.encrypt(b'\x00' * 8)
+        return encrypted[:8]
+    except ImportError:
+        pass
 
-result = subprocess.run(
-    ['openssl', 'enc', '-des-ecb', '-nosalt', '-nopad', '-K', key.hex()],
-    input=b'\x00' * 8,
-    capture_output=True,
-    timeout=5
-)
+    # fallback: openssl
+    import subprocess
+    r = subprocess.run(
+        ['openssl', 'enc', '-des-ecb', '-nosalt', '-nopad', '-K', key.hex()],
+        input=b'\x00' * 8, capture_output=True
+    )
+    if len(r.stdout) >= 8:
+        return r.stdout[:8]
 
-if len(result.stdout) >= 8:
-    passwd_data = result.stdout[:8]
+    return None
+
+passwd = vncEncryptPasswd('nouk1234')
+if passwd and len(passwd) == 8:
+    with open('/home/Nouk/.vnc/passwd', 'wb') as f:
+        f.write(passwd)
+    print(f'VNC passwd OK: {passwd.hex()}')
 else:
-    passwd_data = bytes([0x68, 0x8d, 0x0b, 0x15, 0x1c, 0x93, 0x97, 0x63])
-
-with open('/home/Nouk/.vnc/passwd', 'wb') as f:
-    f.write(passwd_data)
-
-print(f'VNC passwd: {len(passwd_data)} bytes → {passwd_data.hex()}')
+    print('ERROR: failed to generate passwd')
+    exit(1)
 PYEOF
 
 chmod 600 /home/Nouk/.vnc/passwd
 chown -R Nouk:Nouk /home/Nouk/.vnc
-echo "[*] VNC passwd ready: $(ls -la /home/Nouk/.vnc/passwd)"
-
-# สร้าง Xauthority
-su - Nouk -c "touch ~/.Xauthority && chmod 600 ~/.Xauthority" 2>/dev/null || true
+touch /home/Nouk/.Xauthority
+chown Nouk:Nouk /home/Nouk/.Xauthority
+echo "[*] VNC passwd: $(stat -c%s /home/Nouk/.vnc/passwd) bytes → $(xxd -p /home/Nouk/.vnc/passwd)"
 
 # Configure xrdp
 cat > /etc/xrdp/xrdp.ini << 'EOF'
@@ -109,7 +117,6 @@ SyslogLevel=DEBUG
 param=-bs
 param=-nolisten
 param=tcp
-param=-localhost
 param=-dpi
 param=96
 EOF
@@ -132,7 +139,7 @@ if [ -n "${TAILSCALE_AUTHKEY}" ]; then
     tailscale up --authkey="${TAILSCALE_AUTHKEY}" --accept-routes 2>/dev/null || true
     echo "[*] Tailscale started"
 else
-    echo "[!] TAILSCALE_AUTHKEY not set, skipping Tailscale"
+    echo "[!] TAILSCALE_AUTHKEY not set"
 fi
 
 echo "[*] Starting supervisord..."
