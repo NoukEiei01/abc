@@ -1,0 +1,15 @@
+#!/bin/bash
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+
+export XKL_XMODMAP_DISABLE=1
+export DISPLAY=:1
+
+# Start dbus session
+eval $(dbus-launch --sh-syntax --exit-with-session)
+
+# Set wallpaper color (no image needed = saves RAM)
+xsetroot -solid "#2d2d2d" &
+
+# Start XFCE4
+exec /usr/bin/xfce4-session
