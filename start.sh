@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 echo "[*] Starting Remote Desktop System..."
 mkdir -p /var/log/supervisor
@@ -19,49 +18,41 @@ chmod 1777 /tmp/.X11-unix
 
 # รับ password จาก env var
 VNC_PASS="${VNC_PASSWORD:-nouk1234}"
-echo "[*] Using VNC password from: ${VNC_PASSWORD:+VNC_PASSWORD env var}"
+echo "[*] Setting VNC password..."
 
-# สร้าง VNC passwd จาก env var
+# สร้าง passwd ด้วย expect
 mkdir -p /home/Nouk/.vnc
-python3 << PYEOF
-import os
+expect << EXPECTEOF
+spawn su - Nouk -c "/usr/bin/tigervncserver -passwd /home/Nouk/.vnc/passwd"
+expect "Password:"
+send "${VNC_PASS}\r"
+expect "Verify:"
+send "${VNC_PASS}\r"
+expect "view-only"
+send "n\r"
+expect eof
+EXPECTEOF
 
-def vncEncryptPasswd(password):
-    flipped = []
-    for c in password[:8].ljust(8):
-        b = ord(c) if isinstance(c, str) else c
-        flipped.append(int('{:08b}'.format(b)[::-1], 2))
-    key = bytes(flipped)
-    try:
-        import pyDes
-        d = pyDes.des(key, pyDes.ECB)
-        return d.encrypt(b'\x00' * 8)[:8]
-    except ImportError:
-        import subprocess
-        r = subprocess.run(
-            ['openssl', 'enc', '-des-ecb', '-nosalt', '-nopad', '-K', key.hex()],
-            input=b'\x00' * 8, capture_output=True
-        )
-        if len(r.stdout) >= 8:
-            return r.stdout[:8]
-    return None
-
-password = os.environ.get('VNC_PASSWORD', 'nouk1234')
-passwd = vncEncryptPasswd(password)
-if passwd and len(passwd) == 8:
-    with open('/home/Nouk/.vnc/passwd', 'wb') as f:
-        f.write(passwd)
-    print(f'VNC passwd OK: {passwd.hex()} (from password: {password})')
-else:
-    print('ERROR: failed to generate passwd')
-    exit(1)
-PYEOF
+# ถ้า expect ไม่ได้ผล fallback ใช้ python pyDes
+if [ ! -s /home/Nouk/.vnc/passwd ]; then
+    echo "[*] expect fallback to python..."
+    python3 -c "
+import pyDes, os
+pwd = os.environ.get('VNC_PASSWORD', 'nouk1234')
+def rbits(b): return int('{:08b}'.format(b)[::-1], 2)
+key = bytes([rbits(ord(c)) for c in pwd[:8].ljust(8)])
+d = pyDes.des(key, pyDes.ECB)
+data = d.encrypt(b'\x00'*8)[:8]
+open('/home/Nouk/.vnc/passwd','wb').write(data)
+print('passwd:', data.hex())
+"
+fi
 
 chmod 600 /home/Nouk/.vnc/passwd
 chown -R Nouk:Nouk /home/Nouk/.vnc
 touch /home/Nouk/.Xauthority
 chown Nouk:Nouk /home/Nouk/.Xauthority
-echo "[*] VNC passwd ready"
+echo "[*] VNC passwd: $(stat -c%s /home/Nouk/.vnc/passwd) bytes"
 
 # Configure xrdp
 cat > /etc/xrdp/xrdp.ini << 'EOF'
