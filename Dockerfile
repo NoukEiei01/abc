@@ -6,11 +6,11 @@ ENV PASSWORD=nouk1234
 ENV HOME=/home/Nouk
 ENV DISPLAY=:1
 
-# Install all packages
 RUN apt-get update && apt-get install -y \
     xfce4 \
     xfce4-goodies \
-    tightvncserver \
+    tigervnc-standalone-server \
+    tigervnc-common \
     xrdp \
     novnc \
     websockify \
@@ -32,7 +32,6 @@ RUN apt-get update && apt-get install -y \
     sudo \
     tzdata \
     locales \
-    expect \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
@@ -40,50 +39,39 @@ RUN apt-get update && apt-get install -y \
 RUN curl -fsSL https://tailscale.com/install.sh | sh
 
 # Create user Nouk
-RUN useradd -m -s /bin/bash ${USER} \
-    && echo "${USER}:${PASSWORD}" | chpasswd \
-    && usermod -aG sudo ${USER} \
-    && echo "${USER} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN useradd -m -s /bin/bash Nouk \
+    && echo "Nouk:nouk1234" | chpasswd \
+    && usermod -aG sudo Nouk \
+    && echo "Nouk ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Setup VNC directory
-RUN mkdir -p ${HOME}/.vnc \
-    && mkdir -p ${HOME}/.config \
-    && chown -R ${USER}:${USER} ${HOME}
+# Setup directories
+RUN mkdir -p /home/Nouk/.vnc \
+    && mkdir -p /home/Nouk/.config \
+    && chown -R Nouk:Nouk /home/Nouk
 
-# Set VNC password (แก้แล้ว)
+# Set VNC password (tigervnc ใช้วิธีนี้)
 RUN su - Nouk -c "\
     mkdir -p ~/.vnc && \
     printf 'nouk1234\nnouk1234\nn\n' | vncpasswd && \
     chmod 600 ~/.vnc/passwd"
 
-# Copy xstartup for VNC (XFCE4)
-COPY xstartup ${HOME}/.vnc/xstartup
-RUN chmod +x ${HOME}/.vnc/xstartup \
-    && chown ${USER}:${USER} ${HOME}/.vnc/xstartup
+# Copy xstartup
+COPY xstartup /home/Nouk/.vnc/xstartup
+RUN chmod +x /home/Nouk/.vnc/xstartup \
+    && chown Nouk:Nouk /home/Nouk/.vnc/xstartup
 
-# Configure xrdp to use VNC
-RUN sed -i 's/^port=3389/port=3389/' /etc/xrdp/xrdp.ini \
-    && sed -i 's/^#.*security_layer=.*/security_layer=rdp/' /etc/xrdp/xrdp.ini \
-    && sed -i 's/^crypt_level=high/crypt_level=low/' /etc/xrdp/xrdp.ini \
-    && sed -i 's/^bitmap_compression=true/bitmap_compression=true/' /etc/xrdp/xrdp.ini \
-    && echo "exec /usr/bin/xfce4-session" > /etc/skel/.xsession \
-    && echo "exec /usr/bin/xfce4-session" > ${HOME}/.xsession \
-    && chown ${USER}:${USER} ${HOME}/.xsession
+# Configure xrdp
+RUN sed -i 's/^crypt_level=high/crypt_level=low/' /etc/xrdp/xrdp.ini \
+    && echo "exec /usr/bin/xfce4-session" > /home/Nouk/.xsession \
+    && chown Nouk:Nouk /home/Nouk/.xsession
 
-# Add xrdp user to ssl-cert group
 RUN adduser xrdp ssl-cert || true
 
-# Copy supervisor config
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-# Copy start script
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
-# Set noVNC symlink
 RUN ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html || true
-
-# Fix dbus
 RUN mkdir -p /run/dbus && chown messagebus:messagebus /run/dbus || true
 
 EXPOSE 5901 3389 6080
