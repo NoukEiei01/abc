@@ -18,55 +18,53 @@ rm -f /tmp/.X1-lock
 rm -f /tmp/.X11-unix/X1
 su - Nouk -c "rm -f ~/.vnc/*.pid ~/.vnc/*:1* 2>/dev/null || true"
 
-# Set VNC password — หา binary ให้เจอก่อน
-VNC_PASS_BIN=""
-for bin in /usr/bin/tigervncpasswd /usr/bin/vncpasswd /usr/lib/tigervnc/vncpasswd; do
-    if [ -x "$bin" ]; then
-        VNC_PASS_BIN="$bin"
-        break
-    fi
-done
+# Set VNC password ด้วย tigervncserver
+su - Nouk -c "
+    mkdir -p ~/.vnc
+    rm -f ~/.vnc/passwd
+    /usr/bin/tigervncserver -passwd ~/.vnc/passwd <<EOF
+nouk1234
+nouk1234
+EOF
+    chmod 600 ~/.vnc/passwd
+" 2>/dev/null || true
 
-echo "[*] vncpasswd binary: $VNC_PASS_BIN"
+# ถ้ายังไม่มี passwd ใช้ python สร้างแทน
+if [ ! -f /home/Nouk/.vnc/passwd ]; then
+    echo "[!] Using python to generate VNC passwd"
+    python3 -c "
+import struct, os
 
-if [ -n "$VNC_PASS_BIN" ]; then
-    su - Nouk -c "
-        mkdir -p ~/.vnc
-        rm -f ~/.vnc/passwd
-        printf 'nouk1234\nnouk1234\nn\n' | $VNC_PASS_BIN
-        chmod 600 ~/.vnc/passwd
-    "
-else
-    # fallback: สร้าง passwd file ด้วย python3
-    echo "[!] vncpasswd not found, using python fallback"
-    su - Nouk -c "
-        mkdir -p ~/.vnc
-        python3 -c \"
-import struct, hashlib, os
-password = b'nouk1234'[:8]
-password = password.ljust(8, b'\x00')
-DES_KEY = bytes([23,82,107,6,35,78,88,7])
-def des_encrypt(key, data):
-    from itertools import product
-    # simple DES via d3des
-    result = bytearray()
+def gen_vnc_passwd(password):
+    # VNC uses DES with reversed bit order
+    key = bytearray(8)
+    pwd = password.encode('utf-8')[:8].ljust(8, b'\x00')
     for i in range(8):
-        b = 0
+        b = pwd[i] if i < len(pwd) else 0
+        rb = 0
         for j in range(8):
-            b |= ((key[i] >> j) & 1) << (7-j)
-        result.append(b)
-    return bytes(result)
-import subprocess
-result = subprocess.run(['openssl', 'enc', '-des-ecb', '-nosalt', '-nopad', '-K', key.hex(), '-in', '/dev/stdin'], input=password, capture_output=True)
-with open(os.path.expanduser('~/.vnc/passwd'), 'wb') as f:
-    f.write(result.stdout[:8])
-\" 2>/dev/null || echo 'nouk1234' > ~/.vnc/passwd
-        chmod 600 ~/.vnc/passwd
-    "
+            rb |= ((b >> j) & 1) << (7 - j)
+        key[i] = rb
+    # encrypt 8 zero bytes with key
+    import subprocess
+    result = subprocess.run(
+        ['openssl', 'enc', '-des-ecb', '-nosalt', '-nopad',
+         '-K', key.hex(), '-in', '/dev/stdin'],
+        input=b'\x00' * 8, capture_output=True
+    )
+    return result.stdout[:8]
+
+passwd = gen_vnc_passwd('nouk1234')
+os.makedirs('/home/Nouk/.vnc', exist_ok=True)
+with open('/home/Nouk/.vnc/passwd', 'wb') as f:
+    f.write(passwd)
+print('VNC passwd generated')
+"
 fi
 
 chown -R Nouk:Nouk /home/Nouk/.vnc
-echo "[*] VNC password set"
+chmod 600 /home/Nouk/.vnc/passwd 2>/dev/null || true
+echo "[*] VNC password ready"
 
 # Configure xrdp
 cat > /etc/xrdp/xrdp.ini << 'EOF'
