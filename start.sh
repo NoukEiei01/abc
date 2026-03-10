@@ -11,18 +11,17 @@ mkdir -p /run/dbus
 chown messagebus:messagebus /run/dbus 2>/dev/null || true
 dbus-daemon --system --fork 2>/dev/null || true
 
-# Clean up stale VNC locks (important for container restarts)
+# Clean up stale VNC locks
 rm -f /tmp/.X1-lock
 rm -f /tmp/.X11-unix/X1
 su - Nouk -c "rm -f ~/.vnc/*.pid 2>/dev/null || true"
 
-# Generate VNC password if not exists
+# Reset VNC password ทุกครั้งที่ start (แก้แล้ว)
 su - Nouk -c "
     mkdir -p ~/.vnc
-    if [ ! -f ~/.vnc/passwd ]; then
-        echo '${PASSWORD:-nouk1234}' | vncpasswd -f > ~/.vnc/passwd
-        chmod 600 ~/.vnc/passwd
-    fi
+    rm -f ~/.vnc/passwd
+    printf 'nouk1234\nnouk1234\nn\n' | vncpasswd
+    chmod 600 ~/.vnc/passwd
 "
 
 # Set correct permissions
@@ -95,7 +94,7 @@ exec /usr/bin/xfce4-session
 EOF
 chmod +x /etc/xrdp/startwm.sh
 
-# Start Tailscale daemon in background (needs TS_AUTHKEY env var on Railway)
+# Start Tailscale
 if [ -n "${TAILSCALE_AUTHKEY}" ]; then
     echo "[*] Starting Tailscale..."
     tailscaled --tun=userspace-networking --socks5-server=localhost:1055 &
